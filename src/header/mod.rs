@@ -73,7 +73,6 @@ mod header_tests {
   use super::*;
   use crate::cipher::{DerivedKey, RootKey};
   use chacha20poly1305::{aead::{Aead, AeadCore, OsRng}, ChaCha20Poly1305, Key, KeyInit};
-  use crate::helpers::Helpers;
 
   #[test]
   fn test_header_serialize_deserialize() {
@@ -81,22 +80,19 @@ mod header_tests {
     let root_key = RootKey::default(); // This is a 32 byte key use for encrypting and decrypting user data
     let user_passpharase = "Test@123"; // This is the user passphrase used to derive the key (to generate the key to decrypt root_key)
     let os_keychain_raw_key = ChaCha20Poly1305::generate_key(&mut OsRng::default()); // This is a 32 byte key store in os keychain
+    let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng::default()); // Use the same nonce for both encryption and decryption
 
     // Use user passphrase -> encryption key -> encrypt root_key -> encode encrypted root_key -> wrapped dek
-    let dk: DerivedKey = DerivedKey::new(user_passpharase.to_string(), vec![0; 16], 32);
-    let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng::default());
+    let dk: DerivedKey = DerivedKey::new(user_passpharase.to_string(), kdf.salt.clone(), 32);
+    
     let encrypted_root_key_from_user_passphrase = ChaCha20Poly1305::new(&Key::from_slice(&dk.get_value().as_slice())).encrypt(&nonce, root_key.value.as_slice()).unwrap();
-    let encrypted_root_key_from_user_passphrase_base64 = Helpers::base64_encode(&encrypted_root_key_from_user_passphrase);
-    let nonce_base64 = Helpers::base64_encode(&nonce);
 
     // Use os keychain -> encryption key -> encrypt root_key -> encode encrypted root_key -> wrapped dek
     let encrypted_root_key_from_os_keychain = ChaCha20Poly1305::new(&Key::from_slice(&os_keychain_raw_key)).encrypt(&nonce, root_key.value.as_slice()).unwrap();
-    let encrypted_root_key_from_os_keychain_base64 = Helpers::base64_encode(&encrypted_root_key_from_os_keychain);
-    let nonce_base64_from_os_keychain = Helpers::base64_encode(&nonce);
 
     let wraps = Wraps::new(
-      WrapsWithUserPassphrase::new(Helpers::base64_decode(&encrypted_root_key_from_user_passphrase_base64).unwrap(), Helpers::base64_decode(&nonce_base64).unwrap()), 
-      WrapsWithOsKeychain::new(Helpers::base64_decode(&encrypted_root_key_from_os_keychain_base64).unwrap(), Helpers::base64_decode(&nonce_base64_from_os_keychain).unwrap())
+      WrapsWithUserPassphrase::new(encrypted_root_key_from_user_passphrase, nonce.as_slice().to_vec()), 
+      WrapsWithOsKeychain::new(encrypted_root_key_from_os_keychain, nonce.as_slice().to_vec())
     );
 
     let header = Header::new("1.0.0".to_string(), kdf, wraps);
@@ -119,15 +115,15 @@ mod header_tests {
 
   #[test]
   fn test_get_root_key_from_header() {
-    let json_string = r#"{"version":"1.0.0","kdf":{"algorithm":"argon2","salt":"cMCMq9U80mqBc2fu","key_length":32},"wraps":{"from_user_passphrase":{"dek_wrapped":"5tT3qfiGGIpuRM0Qu8K8ux+flfdJnThMglCn1aYU77iq6mxTiPVSWrBXHTkK+6R0","nonce":"770Ww/yxnCgiHSdZ"},"from_os_keychain":{"dek_wrapped":"9ilYJsWddv6Nm9DWO4YJ99LTjiihNHLl+WRP4PjKp1DKaERqpnGuHFysAmUaFoJO","nonce":"770Ww/yxnCgiHSdZ"}}}"#;
+    let json_string = r#"{"version":"1.0.0","kdf":{"algorithm":"argon2","salt":"0tQTh7K1M57EBACV","key_length":32},"wraps":{"from_user_passphrase":{"dek_wrapped":"hlNFbZsNQbOVy80U5TrVzZEnIhOrMrH2cXBeINLQi01yubu0qx4RKsMZs9bgQpWk","nonce":"PH6z/9ujm344Vsiq"},"from_os_keychain":{"dek_wrapped":"BaYHwPMwrvPB6soUzUNWs+GMuQL3OPjngaUoeiCvgWh+l8XeZ8AkLEh7pU5lWThX","nonce":"PH6z/9ujm344Vsiq"}}}"#;
     let header: Header = serde_json::from_str(json_string).unwrap();
 
     println!("Header: {:?}", header);
 
-    // let root_key = header.get_root_key("Test@123".to_string());
-    // println!("Root key: {:?}", root_key);
+    let root_key = header.get_root_key("Test@123".to_string());
+    println!("Root key: {:?}", root_key);
 
-    // assert_eq!(root_key.value.as_slice().len(), 32);
-    // assert_eq!(root_key.metadata.key_length, 32);
+    assert_eq!(root_key.value.as_slice().len(), 32);
+    assert_eq!(root_key.metadata.key_length, 32);
   }
 }
