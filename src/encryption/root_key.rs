@@ -96,7 +96,7 @@ impl Default for RootKey {
 }
 
 #[cfg(test)]
-mod data_key_tests {
+mod root_key_tests {
     use super::*;
 
     #[test]

@@ -6,7 +6,7 @@ pub use encryption::DerivedKey;
 pub mod header;
 
 #[cfg(test)]
-mod tests {
+mod lib_tests {
   use super::*;
   use base64::{engine::general_purpose::STANDARD, Engine};
   use chacha20poly1305::{aead::{OsRng, AeadCore}, ChaCha20Poly1305};
