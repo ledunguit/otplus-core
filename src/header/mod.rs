@@ -6,13 +6,12 @@ pub mod wraps;
 pub use wraps::Wraps;
 pub use wraps::WrapsWithUserPassphrase;
 pub use wraps::WrapsWithOsKeychain;
-pub use crate::encryption::RootKey;
-pub use crate::encryption::RootKeyMetadata;
-pub use crate::encryption::DerivedKey;
-pub use crate::encryption::Encryption;
+pub use crate::cipher::RootKey;
+pub use crate::cipher::RootKeyMetadata;
+pub use crate::cipher::DerivedKey;
+pub use crate::cipher::Cipher;
 use chacha20poly1305::{Key, Nonce};
 use chrono::Utc;
-use base64::{engine::general_purpose::STANDARD, Engine};
 
 #[derive(Debug)]
 pub struct Header {
@@ -28,11 +27,11 @@ impl Header {
 
   pub fn get_root_key(&self, user_passphrase: String) -> RootKey {
     let dk = DerivedKey::new(user_passphrase, self.kdf.salt.clone(), self.kdf.key_length);
-    let wrapped_dek = STANDARD.decode(&self.wraps.from_user_passphrase.dek_wrapped.clone()).unwrap();
-    let wrapped_nonce = STANDARD.decode(&self.wraps.from_user_passphrase.nonce.clone()).unwrap();
+    let wrapped_dek = &self.wraps.from_user_passphrase.dek_wrapped;
+    let wrapped_nonce = &self.wraps.from_user_passphrase.nonce;
     
-    let encryption = Encryption::new(dk.get_value(), Nonce::from_slice(&wrapped_nonce).clone());
-    let decrypted_dek = encryption.decrypt(&wrapped_dek);
+    let cipher = Cipher::new(dk.get_value(), Nonce::from_slice(&wrapped_nonce).clone());
+    let decrypted_dek = cipher.decrypt(&wrapped_dek);
 
     RootKey { value: Key::from_slice(&decrypted_dek).to_owned(), metadata: RootKeyMetadata { created_at: Utc::now().timestamp_millis(), key_length: self.kdf.key_length } }
   }
@@ -72,9 +71,9 @@ impl<'de> Deserialize<'de> for Header {
 #[cfg(test)]
 mod header_tests {
   use super::*;
-  use crate::encryption::{DerivedKey, RootKey};
+  use crate::cipher::{DerivedKey, RootKey};
   use chacha20poly1305::{aead::{Aead, AeadCore, OsRng}, ChaCha20Poly1305, Key, KeyInit};
-  use base64::{engine::general_purpose::STANDARD, Engine};
+  use crate::helpers::Helpers;
 
   #[test]
   fn test_header_serialize_deserialize() {
@@ -87,17 +86,17 @@ mod header_tests {
     let dk: DerivedKey = DerivedKey::new(user_passpharase.to_string(), vec![0; 16], 32);
     let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng::default());
     let encrypted_root_key_from_user_passphrase = ChaCha20Poly1305::new(&Key::from_slice(&dk.get_value().as_slice())).encrypt(&nonce, root_key.value.as_slice()).unwrap();
-    let encrypted_root_key_from_user_passphrase_base64 = STANDARD.encode(&encrypted_root_key_from_user_passphrase);
-    let nonce_base64 = STANDARD.encode(&nonce);
+    let encrypted_root_key_from_user_passphrase_base64 = Helpers::base64_encode(&encrypted_root_key_from_user_passphrase);
+    let nonce_base64 = Helpers::base64_encode(&nonce);
 
     // Use os keychain -> encryption key -> encrypt root_key -> encode encrypted root_key -> wrapped dek
     let encrypted_root_key_from_os_keychain = ChaCha20Poly1305::new(&Key::from_slice(&os_keychain_raw_key)).encrypt(&nonce, root_key.value.as_slice()).unwrap();
-    let encrypted_root_key_from_os_keychain_base64 = STANDARD.encode(&encrypted_root_key_from_os_keychain);
-    let nonce_base64_from_os_keychain = STANDARD.encode(&nonce);
+    let encrypted_root_key_from_os_keychain_base64 = Helpers::base64_encode(&encrypted_root_key_from_os_keychain);
+    let nonce_base64_from_os_keychain = Helpers::base64_encode(&nonce);
 
     let wraps = Wraps::new(
-      WrapsWithUserPassphrase::new(STANDARD.decode(&encrypted_root_key_from_user_passphrase_base64).unwrap(), STANDARD.decode(&nonce_base64).unwrap()), 
-      WrapsWithOsKeychain::new(STANDARD.decode(&encrypted_root_key_from_os_keychain_base64).unwrap(), STANDARD.decode(&nonce_base64_from_os_keychain).unwrap())
+      WrapsWithUserPassphrase::new(Helpers::base64_decode(&encrypted_root_key_from_user_passphrase_base64).unwrap(), Helpers::base64_decode(&nonce_base64).unwrap()), 
+      WrapsWithOsKeychain::new(Helpers::base64_decode(&encrypted_root_key_from_os_keychain_base64).unwrap(), Helpers::base64_decode(&nonce_base64_from_os_keychain).unwrap())
     );
 
     let header = Header::new("1.0.0".to_string(), kdf, wraps);
@@ -124,7 +123,6 @@ mod header_tests {
     let header: Header = serde_json::from_str(json_string).unwrap();
 
     println!("Header: {:?}", header);
-
 
     // let root_key = header.get_root_key("Test@123".to_string());
     // println!("Root key: {:?}", root_key);

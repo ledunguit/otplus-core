@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
-use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::ser::SerializeStruct;
+use crate::helpers::Helpers;
 
 #[derive(Debug)]
 pub struct WrapsWithUserPassphrase {
@@ -20,8 +20,8 @@ impl Serialize for WrapsWithUserPassphrase {
     S: Serializer,
   {
     let mut state = serializer.serialize_struct("WrapsWithUserPassphrase", 2)?;
-    state.serialize_field("dek_wrapped", &STANDARD.encode(&self.dek_wrapped))?;
-    state.serialize_field("nonce", &STANDARD.encode(&self.nonce))?;
+    state.serialize_field("dek_wrapped", &Helpers::base64_encode(&self.dek_wrapped))?;
+    state.serialize_field("nonce", &Helpers::base64_encode(&self.nonce))?;
     state.end()
   }
 }
@@ -38,7 +38,7 @@ impl<'de> Deserialize<'de> for WrapsWithUserPassphrase {
     }
 
     let helper = WrapsWithUserPassphraseHelper::deserialize(deserializer)?;
-    Ok(WrapsWithUserPassphrase::new(STANDARD.decode(&helper.dek_wrapped).unwrap(), STANDARD.decode(&helper.nonce).unwrap()))
+    Ok(WrapsWithUserPassphrase::new(Helpers::base64_decode(&helper.dek_wrapped).unwrap(), Helpers::base64_decode(&helper.nonce).unwrap()))
   }
 }
 
@@ -60,8 +60,8 @@ impl Serialize for WrapsWithOsKeychain {
     S: Serializer,
   {
     let mut state = serializer.serialize_struct("WrapsWithOsKeychain", 2)?;
-    state.serialize_field("dek_wrapped", &STANDARD.encode(&self.dek_wrapped))?;
-    state.serialize_field("nonce", &STANDARD.encode(&self.nonce))?;
+    state.serialize_field("dek_wrapped", &Helpers::base64_encode(&self.dek_wrapped))?;
+    state.serialize_field("nonce", &Helpers::base64_encode(&self.nonce))?;
     state.end()
   }
 }
@@ -78,7 +78,7 @@ impl<'de> Deserialize<'de> for WrapsWithOsKeychain {
     }
 
     let helper = WrapsWithOsKeychainHelper::deserialize(deserializer)?;
-    Ok(WrapsWithOsKeychain::new(STANDARD.decode(&helper.dek_wrapped).unwrap(), STANDARD.decode(&helper.nonce).unwrap()))
+    Ok(WrapsWithOsKeychain::new(Helpers::base64_decode(&helper.dek_wrapped).unwrap(), Helpers::base64_decode(&helper.nonce).unwrap()))
   }
 }
 
