@@ -16,34 +16,34 @@ use base64::{engine::general_purpose::STANDARD, Engine};
  */
 
 #[derive(Debug)]
-pub struct Encryption {
+pub struct Cipher {
     dek: Key,
     nonce: Nonce,
 }
 
-impl Serialize for Encryption {
+impl Serialize for Cipher {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer {
-        let mut state = serializer.serialize_struct("Encryption", 2)?;
+        let mut state = serializer.serialize_struct("Cipher", 2)?;
         state.serialize_field("dek", &STANDARD.encode(&self.dek.as_slice()))?;
         state.serialize_field("nonce", &STANDARD.encode(&self.nonce.as_slice()))?;
         state.end()
     }
 }
 
-impl<'de> Deserialize<'de> for Encryption {
+impl<'de> Deserialize<'de> for Cipher {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
             D: serde::Deserializer<'de>,
         {
             #[derive(serde::Deserialize)]
-            struct EncryptionHelper {
+            struct CipherHelper {
                 dek: String,
                 nonce: String,
             }
 
-            let helper = EncryptionHelper::deserialize(deserializer)?;
+            let helper = CipherHelper::deserialize(deserializer)?;
             let nonce_array = Nonce::from_slice(&STANDARD.decode(&helper.nonce).unwrap()).clone();
 
             if nonce_array.len() != 12 {
@@ -52,7 +52,7 @@ impl<'de> Deserialize<'de> for Encryption {
 
             let dek_array = Key::from_slice(&STANDARD.decode(&helper.dek).unwrap()).clone();
 
-            Ok(Encryption {
+            Ok(Cipher {
                 dek: dek_array,
                 nonce: nonce_array,
             })
@@ -62,7 +62,7 @@ impl<'de> Deserialize<'de> for Encryption {
 /**
  * The dek should be zeroized on drop (clear from memory)
 */
-impl Drop for Encryption {
+impl Drop for Cipher {
     fn drop(&mut self) {
         self.dek.as_mut_slice().zeroize();
     }
@@ -72,7 +72,7 @@ impl Drop for Encryption {
  * If user use the default constructor, the dek and nonce should be generated randomly
  */
 
-impl Default for Encryption {
+impl Default for Cipher {
     fn default() -> Self {
         let mut os_rng = OsRng::default();
 
@@ -83,7 +83,7 @@ impl Default for Encryption {
     }
 }
 
-impl Encryption {
+impl Cipher {
     pub fn new(dek: Key, nonce: Nonce) -> Self {
         Self { dek, nonce }
     }
@@ -100,31 +100,31 @@ impl Encryption {
 }
 
 #[cfg(test)]
-mod encryption_tests {
+mod cipher_tests {
     use super::*;
 
     #[test]
-    fn test_encryption_serialize_deserialize() {
-        let encryption = Encryption::default();
-        let serialized = serde_json::to_string(&encryption).unwrap();
+    fn test_cipher_serialize_deserialize() {
+        let cipher = Cipher::default();
+        let serialized = serde_json::to_string(&cipher).unwrap();
 
         println!("Serialized: {}", serialized);
-        let deserialized: Encryption = serde_json::from_str(&serialized).unwrap();
+        let deserialized: Cipher = serde_json::from_str(&serialized).unwrap();
         println!("Deserialized: {:?}", deserialized);
 
-        assert_eq!(encryption.dek.as_slice(), deserialized.dek.as_slice());
-        assert_eq!(encryption.nonce.as_slice(), deserialized.nonce.as_slice());
-        assert_eq!(encryption.nonce.len(), deserialized.nonce.len());
+        assert_eq!(cipher.dek.as_slice(), deserialized.dek.as_slice());
+        assert_eq!(cipher.nonce.as_slice(), deserialized.nonce.as_slice());
+        assert_eq!(cipher.nonce.len(), deserialized.nonce.len());
     }
 
     #[test]
-    fn test_encryption_encrypt_decrypt() {
+    fn test_cipher_encrypt_decrypt() {
         let dek = ChaCha20Poly1305::generate_key(&mut OsRng::default()).as_slice().to_vec();
         let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng::default());
-        let encryption = Encryption::new(Key::from_slice(&dek).clone(), nonce);
+        let cipher = Cipher::new(Key::from_slice(&dek).clone(), nonce);
         let plaintext = b"hello world";
-        let ciphertext = encryption.encrypt(plaintext);
-        let decrypted = encryption.decrypt(&ciphertext);
+        let ciphertext = cipher.encrypt(plaintext);
+        let decrypted = cipher.decrypt(&ciphertext);
 
         assert_eq!(plaintext, decrypted.as_slice());
     }
