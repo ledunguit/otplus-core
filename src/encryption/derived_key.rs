@@ -1,8 +1,20 @@
-use argon2::Argon2;
+use argon2::{Argon2, Algorithm, Version, Params};
 use chacha20poly1305::Key;
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 use serde::ser::SerializeStruct;
 use base64::{engine::general_purpose::STANDARD, Engine};
+
+pub struct KdfParams {
+  m_cost: u32,
+  t_cost: u32,
+  p_cost: u32,
+}
+
+impl KdfParams {
+  pub fn new(m_cost: u32, t_cost: u32, p_cost: u32) -> Self {
+    Self { m_cost, t_cost, p_cost }
+  }
+}
 
 #[derive(Debug)]
 pub struct DerivedKey {
@@ -85,7 +97,9 @@ impl<'de> Deserialize<'de> for DerivedKey {
 impl DerivedKey {
   pub fn new(passphrase: String, salt: Vec<u8>, key_length: u32) -> Self {
     let mut output = vec![0; key_length as usize];
-    Argon2::default().hash_password_into(passphrase.as_bytes(), &salt, &mut output).unwrap();
+    let kdf_params = KdfParams::new(256u32, 3, 1);
+    let params = Params::new(kdf_params.m_cost, kdf_params.t_cost, kdf_params.p_cost, Some(key_length as usize)).unwrap();
+    Argon2::new(Algorithm::Argon2id, Version::V0x13, params).hash_password_into(passphrase.as_bytes(), &salt, &mut output).unwrap();
 
     Self { value: Key::from_slice(&output).clone(), salt }
   }
@@ -103,9 +117,20 @@ impl DerivedKey {
 mod derived_key_tests {
   use super::*;
 
+  const SALT: [u8; 12] = [147, 253, 247, 2, 13, 123, 249, 26, 108, 229, 69, 61]; // For testing purposes
+
+  #[test]
+  fn test_argon2_params() {
+    let kdf_params = KdfParams::new(256u32, 3, 1);
+    let params = Params::new(kdf_params.m_cost, kdf_params.t_cost, kdf_params.p_cost, Some(32)).unwrap();
+    assert_eq!(params.m_cost(), kdf_params.m_cost);
+    assert_eq!(params.t_cost(), kdf_params.t_cost);
+    assert_eq!(params.p_cost(), kdf_params.p_cost);
+  }
+
   #[test]
   fn test_passphrase_to_derived_key() {
-    let salt = Vec::from([147, 253, 247, 2, 13, 123, 249, 26, 108, 229, 69, 61]); // For testing purposes
+    let salt = Vec::from(SALT);
     let derived_key = DerivedKey::new("password".to_string(), salt.clone(), 32);
 
     assert_eq!(derived_key.value.as_slice().len(), 32);
@@ -114,7 +139,7 @@ mod derived_key_tests {
 
   #[test]
   fn test_the_same_passphrase_should_produce_the_same_derived_key() {
-    let salt = Vec::from([147, 253, 247, 2, 13, 123, 249, 26, 108, 229, 69, 61]); // For testing purposes
+    let salt = Vec::from(SALT);
     let derived_key1 = DerivedKey::new("password".to_string(), salt.clone(), 32);
     let derived_key2 = DerivedKey::new("password".to_string(), salt.clone(), 32);
     assert_eq!(derived_key1.value, derived_key2.value);
@@ -122,7 +147,7 @@ mod derived_key_tests {
 
   #[test]
   fn test_the_different_passphrase_should_produce_the_different_derived_key() {
-    let salt = Vec::from([147, 253, 247, 2, 13, 123, 249, 26, 108, 229, 69, 61]); // For testing purposes
+    let salt = Vec::from(SALT);
     let derived_key1 = DerivedKey::new("password".to_string(), salt.clone(), 32);
     let derived_key2 = DerivedKey::new("password2".to_string(), salt.clone(), 32);
     assert_ne!(derived_key1.value, derived_key2.value);
@@ -130,7 +155,7 @@ mod derived_key_tests {
 
   #[test]
   fn test_derived_key_serialize_deserialize() {
-    let salt = Vec::from([147, 253, 247, 2, 13, 123, 249, 26, 108, 229, 69, 61]); // For testing purposes
+    let salt = Vec::from(SALT);
     let derived_key = DerivedKey::new("password".to_string(), salt.clone(), 32);
     let serialized = serde_json::to_string(&derived_key).unwrap();
     println!("Serialized: {}", serialized);
