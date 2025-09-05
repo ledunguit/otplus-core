@@ -12,14 +12,14 @@ OTPlus Core is a library for creating and managing OTPlus keys for encrypting an
 
 - Create root key
 ```rust
-use otplus_core::encryption::RootKey;
+use otplus_core::cipher::RootKey;
 
 let root_key = RootKey::default();
 ```
 
 - Create derived key from passphrase
 ```rust
-use otplus_core::encryption::DerivedKey;
+use otplus_core::cipher::DerivedKey;
 
 let derived_key = DerivedKey::new("password", vec![0; 16], 32);
 ```
