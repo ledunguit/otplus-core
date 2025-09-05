@@ -1,6 +1,6 @@
 [package]
 name = "otplus-core"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 description = "Core cryptographic library for OTPlus - A secure one-time password and key derivation system"
 license = "MIT"
