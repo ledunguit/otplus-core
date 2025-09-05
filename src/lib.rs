@@ -1,11 +1,14 @@
 pub mod cipher;
+pub mod header;
+pub mod helpers;
+pub mod keychain;
+
 pub use cipher::Cipher;
 pub use cipher::RootKey;
 pub use cipher::RootKeyMetadata;
 pub use cipher::DerivedKey;
-pub mod header;
-pub mod helpers;
 pub use helpers::Helpers;
+pub use keychain::KeyChain;
 
 #[cfg(test)]
 mod lib_tests {
