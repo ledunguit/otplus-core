@@ -7,7 +7,7 @@ pub use derived_key::DerivedKey;
 use chacha20poly1305::{aead::{Aead, OsRng}, AeadCore, ChaCha20Poly1305, KeyInit, Nonce, Key};
 use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use zeroize::Zeroize;
-use base64::{engine::general_purpose::STANDARD, Engine};
+use crate::helpers::Helpers;
 
 /**
  * Encryption is a struct that contains a dek and a nonce.
@@ -26,8 +26,8 @@ impl Serialize for Cipher {
         where
             S: serde::Serializer {
         let mut state = serializer.serialize_struct("Cipher", 2)?;
-        state.serialize_field("dek", &STANDARD.encode(&self.dek.as_slice()))?;
-        state.serialize_field("nonce", &STANDARD.encode(&self.nonce.as_slice()))?;
+        state.serialize_field("dek", &Helpers::base64_encode(&self.dek.as_slice()))?;
+        state.serialize_field("nonce", &Helpers::base64_encode(&self.nonce.as_slice()))?;
         state.end()
     }
 }
@@ -44,13 +44,13 @@ impl<'de> Deserialize<'de> for Cipher {
             }
 
             let helper = CipherHelper::deserialize(deserializer)?;
-            let nonce_array = Nonce::from_slice(&STANDARD.decode(&helper.nonce).unwrap()).clone();
+            let nonce_array = Nonce::from_slice(&Helpers::base64_decode(&helper.nonce).unwrap()).clone();
 
             if nonce_array.len() != 12 {
                 return Err(serde::de::Error::custom("Invalid nonce length"));
             }
 
-            let dek_array = Key::from_slice(&STANDARD.decode(&helper.dek).unwrap()).clone();
+            let dek_array = Key::from_slice(&Helpers::base64_decode(&helper.dek).unwrap()).clone();
 
             Ok(Cipher {
                 dek: dek_array,

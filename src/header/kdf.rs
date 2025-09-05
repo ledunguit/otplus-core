@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use chacha20poly1305::{aead::{AeadCore, OsRng}, ChaCha20Poly1305};
 use serde::ser::SerializeStruct;
-use base64::{engine::general_purpose::STANDARD, Engine};
+use crate::helpers::Helpers;
 
 #[derive(Debug)]
 pub struct Kdf {
@@ -27,7 +27,7 @@ impl Serialize for Kdf {
     let mut state = serializer.serialize_struct("Kdf", 3)?;
     state.serialize_field("algorithm", &self.algorithm)?;
 
-    let salt_base64 = STANDARD.encode(&self.salt);
+    let salt_base64 = Helpers::base64_encode(&self.salt);
     state.serialize_field("salt", &salt_base64)?;
     state.serialize_field("key_length", &self.key_length)?;
     state.end()
@@ -48,7 +48,7 @@ impl<'de> Deserialize<'de> for Kdf {
 
     let kdf_helper = KdfHelper::deserialize(deserializer)?;
 
-    let salt = STANDARD.decode(&kdf_helper.salt).unwrap_or_default();
+    let salt = Helpers::base64_decode(&kdf_helper.salt).unwrap_or_default();
 
     Ok(Self { algorithm: kdf_helper.algorithm, salt: salt, key_length: kdf_helper.key_length })
   }
