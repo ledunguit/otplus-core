@@ -82,26 +82,28 @@ mod header_tests {
     let os_keychain_raw_key = ChaCha20Poly1305::generate_key(&mut OsRng::default()); // This is a 32 byte key store in os keychain
     let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng::default()); // Use the same nonce for both encryption and decryption
 
+    println!("Root key: {:?}", root_key);
     // Use user passphrase -> encryption key -> encrypt root_key -> encode encrypted root_key -> wrapped dek
     let dk: DerivedKey = DerivedKey::new(user_passpharase.to_string(), kdf.salt.clone(), 32);
     
+    println!("Derived key: {:?}", dk);
     let encrypted_root_key_from_user_passphrase = ChaCha20Poly1305::new(&Key::from_slice(&dk.get_value().as_slice())).encrypt(&nonce, root_key.value.as_slice()).unwrap();
-
+    println!("Encrypted root key from user passphrase: {:?}", encrypted_root_key_from_user_passphrase);
     // Use os keychain -> encryption key -> encrypt root_key -> encode encrypted root_key -> wrapped dek
     let encrypted_root_key_from_os_keychain = ChaCha20Poly1305::new(&Key::from_slice(&os_keychain_raw_key)).encrypt(&nonce, root_key.value.as_slice()).unwrap();
-
+    println!("Encrypted root key from os keychain: {:?}", encrypted_root_key_from_os_keychain);
     let wraps = Wraps::new(
       WrapsWithUserPassphrase::new(encrypted_root_key_from_user_passphrase, nonce.as_slice().to_vec()), 
       WrapsWithOsKeychain::new(encrypted_root_key_from_os_keychain, nonce.as_slice().to_vec())
     );
-
+    println!("Wraps: {:?}", wraps);
     let header = Header::new("1.0.0".to_string(), kdf, wraps);
     let serialized = serde_json::to_string(&header).unwrap();
     println!("Serialized: {}", serialized);
 
     let deserialized: Header = serde_json::from_str(&serialized).unwrap();
     println!("Deserialized: {:?}", deserialized);
-
+    
     assert_eq!(header.version, deserialized.version);
     assert_eq!(header.kdf.algorithm, deserialized.kdf.algorithm);
     assert_eq!(header.kdf.salt, deserialized.kdf.salt);
@@ -115,7 +117,8 @@ mod header_tests {
 
   #[test]
   fn test_get_root_key_from_header() {
-    let json_string = r#"{"version":"1.0.0","kdf":{"algorithm":"argon2","salt":"0tQTh7K1M57EBACV","key_length":32},"wraps":{"from_user_passphrase":{"dek_wrapped":"hlNFbZsNQbOVy80U5TrVzZEnIhOrMrH2cXBeINLQi01yubu0qx4RKsMZs9bgQpWk","nonce":"PH6z/9ujm344Vsiq"},"from_os_keychain":{"dek_wrapped":"BaYHwPMwrvPB6soUzUNWs+GMuQL3OPjngaUoeiCvgWh+l8XeZ8AkLEh7pU5lWThX","nonce":"PH6z/9ujm344Vsiq"}}}"#;
+    let json_string = r#"{"version":"1.0.0","kdf":{"algorithm":"argon2","salt":"NyBCbIDTytY/ax0D","key_length":32},"wraps":{"from_user_passphrase":{"dek_wrapped":"B7FWTyLOPzNP9FmkiN9Z9BO/jQ8qfbGIBrP9Ofa9ENaoubkj0/QynKRI9qUZIt3c","nonce":"GWvPXvL7Kt5H7VT4"},"from_os_keychain":{"dek_wrapped":"ED+cxDyI8+e/7DVYP+HmKhlPv+MmFk8o2Ajgn16u1u6Sd36eaR9sSFeWWm43MHGo","nonce":"GWvPXvL7Kt5H7VT4"}}}"#;
+    // Root key should be: Root Key { value: [66, 36, 250, 215, 250, 180, 233, 47, 193, 55, 184, 164, 196, 136, 144, 51, 67, 151, 5, 179, 65, 70, 236, 179, 142, 141, 10, 148, 119, 143, 41, 160], metadata: RootKeyMetadata { created_at: 1757053727401, key_length: 32 } }
     let header: Header = serde_json::from_str(json_string).unwrap();
 
     println!("Header: {:?}", header);
@@ -123,7 +126,7 @@ mod header_tests {
     let root_key = header.get_root_key("Test@123".to_string());
     println!("Root key: {:?}", root_key);
 
-    assert_eq!(root_key.value.as_slice().len(), 32);
+    assert_eq!(root_key.value.as_slice(), [66, 36, 250, 215, 250, 180, 233, 47, 193, 55, 184, 164, 196, 136, 144, 51, 67, 151, 5, 179, 65, 70, 236, 179, 142, 141, 10, 148, 119, 143, 41, 160]);
     assert_eq!(root_key.metadata.key_length, 32);
   }
 }
