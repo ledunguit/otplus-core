@@ -57,9 +57,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
             
-      - name: Install cargo-edit for version bumping
+      - name: Cache cargo-edit binary
+        id: cache-cargo-edit
         if: ${{ !inputs.dry_run && inputs.version_action != 'current' }}
-        run: cargo install cargo-edit
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/cargo-set-version
+            ~/.cargo/bin/cargo-rm
+            ~/.cargo/bin/cargo-add
+          key: ${{ runner.os }}-cargo-edit-v0.12.1
+          restore-keys: |
+            ${{ runner.os }}-cargo-edit-
+            
+      - name: Cache cargo-edit build dependencies
+        if: ${{ !inputs.dry_run && inputs.version_action != 'current' && steps.cache-cargo-edit.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/git/db
+          key: ${{ runner.os }}-cargo-edit-deps-v0.12.1
+          restore-keys: |
+            ${{ runner.os }}-cargo-edit-deps-
+          
+      - name: Install cargo-edit for version bumping
+        if: ${{ !inputs.dry_run && inputs.version_action != 'current' && steps.cache-cargo-edit.outputs.cache-hit != 'true' }}
+        run: |
+          echo "Installing cargo-edit v0.12.1..."
+          cargo install cargo-edit --version 0.12.1 --verbose
+          echo "cargo-edit installed successfully!"
           
       - name: Bump version and create PR
         if: ${{ !inputs.dry_run && inputs.version_action != 'current' }}
