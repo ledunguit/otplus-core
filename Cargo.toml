@@ -1,7 +1,16 @@
 [package]
 name = "otplus-core"
 version = "0.0.1"
-edition = "2024"
+edition = "2021"
+description = "Core cryptographic library for OTPlus - A secure one-time password and key derivation system"
+license = "MIT"
+authors = ["OTPlus Team"]
+repository = "https://github.com/ledunguit/otplus-core"
+homepage = "https://github.com/ledunguit/otplus-core"
+documentation = "https://docs.rs/otplus-core"
+readme = "README.md"
+keywords = ["cryptography", "otp", "security", "key-derivation", "encryption"]
+categories = ["cryptography", "authentication"]
 
 [dependencies]
 anyhow = "1.0.99"
