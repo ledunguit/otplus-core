@@ -3,12 +3,13 @@ name: Release to Crates.io
 on:
   workflow_dispatch:
     inputs:
-      version_bump:
-        description: 'Type of version bump (patch, minor, major)'
+      version_action:
+        description: 'Version action to perform'
         required: false
-        default: 'patch'
+        default: 'current'
         type: choice
         options:
+          - current
           - patch
           - minor
           - major
@@ -17,11 +18,6 @@ on:
         required: false
         default: false
         type: boolean
-  workflow_run:
-    workflows: ["Build Artifact"]
-    types:
-      - completed
-    branches: [main]
 
 permissions:
   contents: write
@@ -32,10 +28,9 @@ env:
 
 jobs:
   release:
-    name: Release to Crates.io
+    name: ${{ inputs.dry_run && format('🔥 Dry Run Release ({0})', inputs.version_action) || format('📦 Manual Release ({0})', inputs.version_action) }}
     runs-on: ubuntu-latest
     environment: production
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     
     steps:
       - name: Checkout code
@@ -62,18 +57,18 @@ jobs:
             ${{ runner.os }}-cargo-
             
       - name: Install cargo-edit for version bumping
-        if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+        if: ${{ !inputs.dry_run && inputs.version_action != 'current' }}
         run: cargo install cargo-edit
           
       - name: Bump version
-        if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+        if: ${{ !inputs.dry_run && inputs.version_action != 'current' }}
         run: |
-          echo "Bumping version with type: ${{ inputs.version_bump }}"
-          cargo set-version --bump ${{ inputs.version_bump }}
+          echo "Bumping version with type: ${{ inputs.version_action }}"
+          cargo set-version --bump ${{ inputs.version_action }}
           git config user.name "otplus-actions[bot]"
           git config user.email "otplus-actions[bot]@users.noreply.github.com"
           git add Cargo.toml
-          git commit -m "Bump version (${{ inputs.version_bump }})"
+          git commit -m "Bump version (${{ inputs.version_action }})"
           git push
           
       - name: Get package version
@@ -82,7 +77,6 @@ jobs:
           VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-          echo "is_manual=${{ github.event_name == 'workflow_dispatch' }}" >> $GITHUB_OUTPUT
           echo "dry_run=${{ inputs.dry_run || false }}" >> $GITHUB_OUTPUT
           
       - name: Check if tag exists
@@ -173,12 +167,10 @@ jobs:
           echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tag**: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: Manual by @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.version.outputs.dry_run }}" == "true" ]; then
             echo "- **Mode**: 🔥 Dry Run (không thực sự publish)" >> $GITHUB_STEP_SUMMARY
           else
             echo "- **Mode**: 📦 Production Release" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ "${{ steps.version.outputs.is_manual }}" == "true" ]; then
-            echo "- **Version Bump**: ${{ inputs.version_bump }}" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "- **Version Action**: ${{ inputs.version_action }}" >> $GITHUB_STEP_SUMMARY
